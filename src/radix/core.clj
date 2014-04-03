@@ -60,27 +60,26 @@
       (find-all-leafs node)
       '())))
 
-(defn replace-last [s n]
+(defn- remove-last [s n]
   (subs s 0 (- (count s) n)))
 
+(defn- remove-first [s r] (str/replace-first s r ""))
+
 (defn merge-edge [edge prefix]
-  (if edge
-    (let [overlap (find-overlap prefix (:edge edge))
-          edge-rem (str/replace-first (:edge edge) overlap "")
-          prefix-rem (str/replace-first prefix overlap "")
-          node-label (:label (:target edge))
-          truncate-by (max 0  (- (count (:edge edge)) (count overlap)))
-          new-node-label (replace-last node-label truncate-by)]
-      (do
-        (->Edge overlap
-                (->Node new-node-label
-                        false
-                        (sorted-map prefix-rem
-                                    (edge-to-leaf prefix-rem (str new-node-label prefix-rem))
-                                    edge-rem
-                                    (->Edge edge-rem (:target edge))
-                                    )))))
-    (->Edge prefix (->Node prefix true (sorted-map)))))
+  (let [overlap (find-overlap prefix (:edge edge))
+        edge-rem (remove-first (:edge edge) overlap)
+        prefix-rem (remove-first prefix overlap)
+        node-label (:label (:target edge))
+        truncate-by (max 0  (- (count (:edge edge)) (count overlap)))
+        new-node-label (remove-last node-label truncate-by)]
+    (->Edge overlap
+            (->Node new-node-label
+                    false
+                    (sorted-map prefix-rem
+                                (edge-to-leaf prefix-rem (str new-node-label prefix-rem))
+                                edge-rem
+                                (->Edge edge-rem (:target edge))
+                                )))))
 
 (defn- insert-edge [new-edge edges]
   (assoc edges (:edge new-edge) new-edge))
