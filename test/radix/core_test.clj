@@ -23,7 +23,8 @@
     (is (= (list "team" "ten" "test") (find-prefix tree "te"))))
 
   (let [tree (-> nil (insert "test") (insert "team") (insert "ten") (insert "tux") (insert "tuxedo"))]
-    (is (= (list) (find-prefix tree "teamster"))))
+    (is (= (list) (find-prefix tree "teamster")))
+    (is (= (list "tux" "tuxedo") (find-prefix tree "tu"))))
 
   (is ( = (list "abc")
           (let [tree (insert (insert nil "abc") "def")]
