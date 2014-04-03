@@ -40,30 +40,25 @@
   (last (first (filter #(not (empty? (find-overlap (first %) prefix))) edges))))
 
 (defn find-node [node prefix]
-  (do
-    (if (empty? prefix)
-      node
-      (if-let [edge (find-outgoing-edge (:edges node) prefix)]
-        (do
-          (if (= (count (find-overlap (:edge edge) prefix)) (count prefix))
-            (:target edge)
-            (find-node (:target edge) (subs prefix (count (:edge edge))))))
-        node))))
+  (if (empty? prefix)
+    node
+    (if-let [edge (find-outgoing-edge (:edges node) prefix)]
+      (if (= (count (find-overlap (:edge edge) prefix)) (count prefix))
+        (:target edge)
+        (find-node (:target edge) (subs prefix (count (:edge edge)))))
+      node)))
 
 (defn find-all-leafs [node]
-  (do
-    (if (:leaf node)
-      (list (:label node))
-      (let [nodes (vals (:edges node))]
-        (do
-          (apply concat (map #(find-all-leafs (:target %))  (vals (:edges node)))))))))
+  (if (:leaf node)
+    (list (:label node))
+    (let [nodes (vals (:edges node))]
+      (apply concat (map #(find-all-leafs (:target %))  (vals (:edges node)))))))
 
 (defn find-prefix [node str]
   (let [node (find-node node str)]
-    (do
-      (if (starts-with (:label node) str)
-        (find-all-leafs node)
-        '()))))
+    (if (starts-with (:label node) str)
+      (find-all-leafs node)
+      '())))
 
 (defn replace-last [s n]
   (subs s 0 (- (count s) n)))
@@ -92,16 +87,20 @@
 
 (defn insert [tree prefix]
   (let [edge (find-outgoing-edge (:edges tree) prefix)]
-    (do
-      (cond
-       edge (let [new-edge (merge-edge edge prefix)]
-              (do
-                (->Node (:label tree)
-                        false
-                        (assoc (dissoc (:edges tree) (:edge edge)) (:edge new-edge) new-edge))
-                ))
-       :else (->Node (if (:label tree)
-                       (:label tree)
-                       "")
-                     false
-                     (insert-edge (merge-edge edge prefix) (:edges tree)))))))
+    (if edge
+      (let [overlap (find-overlap (:edge edge) prefix)]
+        (if (and (= (count overlap) (count ( :edge edge))) (not  (:leaf (:target edge))))
+          (let [node (insert (:target edge) (subs prefix (count overlap)))]
+            (->Node (:label tree)
+                    false
+                    (assoc (dissoc (:edges tree) (:edge edge)) (:edge edge) (->Edge overlap node)))
+            )
+          (let [new-edge (merge-edge edge prefix)]
+            (->Node (:label tree)
+                    false
+                    (assoc (dissoc (:edges tree) (:edge edge)) (:edge new-edge) new-edge)))))
+      (->Node (if (:label tree)
+                (:label tree)
+                "")
+              false
+              (insert-edge (edge-to-leaf prefix (str (:label tree) prefix)) (:edges tree))))))
