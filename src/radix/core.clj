@@ -27,62 +27,67 @@
 ;; roc --> rock, rocket, rested, restaurant,
 ;; p   --> nil
 ;;
-(defn- starts-with [s subs]
-  (= 0 (.indexOf s subs)))
+
+(defn- find-first [seq pred]
+  (first (filter pred seq)))
 
 (defn find-overlap [seq1 seq2]
   (->> (map vector seq1 seq2)
        (take-while (fn [[c1 c2]] (= c1 c2)))
        (map first)
-       (apply str)))
+       (apply str)
+       not-empty))
 
 (defn find-outgoing-edge [edges prefix]
-  (last (first (filter #(not (empty? (find-overlap (first %) prefix))) edges))))
+  (->> edges
+       (filter #(find-overlap (first %) prefix))
+       first
+       last))
 
 (defn find-node [node prefix]
-  (if (empty? prefix)
-    node
-    (if-let [edge (find-outgoing-edge (:edges node) prefix)]
-      (if (= (count (find-overlap (:edge edge) prefix)) (count prefix))
-        (:target edge)
-        (find-node (:target edge) (subs prefix (count (:edge edge)))))
-      node)))
+  (when-let [edge (find-outgoing-edge (:edges node) prefix)]
+    (if (= (find-overlap (:edge edge) prefix) prefix) ;; TODO
+      (:target edge)
+      (find-node (:target edge) (subs prefix (count (:edge edge)))))))
 
 (defn find-all-leafs [node]
   (if (:leaf node)
     (list (:label node))
     (let [nodes (vals (:edges node))]
-      (apply concat (map #(find-all-leafs (:target %))  (vals (:edges node)))))))
-
-(defn find-prefix [node str]
-  (let [node (find-node node str)]
-    (if (starts-with (:label node) str)
-      (find-all-leafs node)
-      '())))
+      (apply concat (map #(find-all-leafs (:target %)) (vals (:edges node)))))))
 
 (defn- remove-last [s n]
   (subs s 0 (- (count s) n)))
 
 (defn- remove-first [s r] (str/replace-first s r ""))
 
-(defn merge-edge [edge prefix]
+(defn split-edge [edge prefix]
   (let [overlap (find-overlap prefix (:edge edge))
         edge-rem (remove-first (:edge edge) overlap)
         prefix-rem (remove-first prefix overlap)
         node-label (:label (:target edge))
-        truncate-by (max 0  (- (count (:edge edge)) (count overlap)))
-        new-node-label (remove-last node-label truncate-by)]
+        new-node-label (remove-last node-label (- (count (:edge edge)) (count overlap)))]
     (->Edge overlap
             (->Node new-node-label
                     false
-                    (sorted-map prefix-rem
-                                (edge-to-leaf prefix-rem (str new-node-label prefix-rem))
-                                edge-rem
-                                (->Edge edge-rem (:target edge))
-                                )))))
+                    {prefix-rem
+                     (edge-to-leaf prefix-rem (str new-node-label prefix-rem))
+
+                     edge-rem
+                     (->Edge edge-rem (:target edge))}))))
 
 (defn- insert-edge [new-edge edges]
   (assoc edges (:edge new-edge) new-edge))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Public API
+
+(defn find-prefix
+  "finds all the entries that start with the given string"
+  [node query]
+  (->> query
+       (find-node node)
+       find-all-leafs))
 
 (defn insert [tree prefix]
   (let [edge (find-outgoing-edge (:edges tree) prefix)]
@@ -92,9 +97,8 @@
           (let [node (insert (:target edge) (subs prefix (count overlap)))]
             (->Node (:label tree)
                     false
-                    (assoc (dissoc (:edges tree) (:edge edge)) (:edge edge) (->Edge overlap node)))
-            )
-          (let [new-edge (merge-edge edge prefix)]
+                    (assoc (dissoc (:edges tree) (:edge edge)) (:edge edge) (->Edge overlap node))))
+          (let [new-edge (split-edge edge prefix)]
             (->Node (:label tree)
                     false
                     (assoc (dissoc (:edges tree) (:edge edge)) (:edge new-edge) new-edge)))))
